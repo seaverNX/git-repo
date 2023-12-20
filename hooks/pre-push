@@ -1,6 +1,97 @@
-#!/bin/bash -ex
-echo '------------------------'
-echo $@
-echo '------------------------'
-env
+#!/bin/bash 
+remote="$1"
+url="$2"
+
+z40=0000000000000000000000000000000000000000
+
+
+
+usage(){
+	
+        echo -e """Aborting commit $1 in $2\nPlease follow appropriate commit message format
+You can refer to https://sr568gal5j.feishu.cn/docx/Y2vRdr4X8ohnDmxCu6DcezxonPe?from=from_copylink
+        """
+        exit 1
+}
+
+commitCheck(){
+message=$1
+cmit=$2
+ref=$3
+first_line=$(echo -e "$message" | sed -n 1p)
+second_line=$(echo -e "$message" | sed -n 2p)
+typePatter='type:\s?(style|feat|test|refactor|chore|fix|chore)\s?$'
+trackingIdPatter='tracking-id:\s?(\d+|NA)\s?$'
+modulePatter='module:\s?\W?\s?'
+projectPatter='project:\s?\W?\s?'
+
+if [ ${#first_line} -gt 70 ];then
+   echo -e '\033[31merror\033[0m: the length of first line less 50 charactor'
+   usage $cmit $ref
+fi
+
+if [ ${#second_line} -gt 0 ];then
+   echo -e '\033[31merror\033[0m: second line need keep empty'
+   usage $cmit $ref
+fi
+
+if ! echo -e "$message" | grep -iqE "${typePatter}";then
+   echo -e '\033[31merror: Commit message must include "type:" or value need use default option\033[0m'
+   usage $cmit $ref
+fi
+
+if ! echo -e "$message" | grep -iqE "${modulePatter}";then
+   echo -e '\033[31merror: Commit message must include "module:"\033[0m'
+   usage $cmit $ref
+fi
+
+if ! echo -e "$message" | grep -iqE "${projectPatter}";then
+   echo -e '\033[31merror: Commit message must include "project:"\033[0m'
+   usage $cmit $ref
+fi
+
+if ! echo -e "$message" | grep -iqE "${trackingIdPatter}";then
+   echo -e '\033[31merror: Commit message must include "tracking-id:" or value can not null\033[0m'
+   usage $cmit $ref
+fi
+}
+
+while read local_ref local_sha remote_ref remote_sha
+do
+	if [ "$local_sha" = $z40 ]
+	then
+		echo "Deleting files, OK."
+	else
+		if [ "$remote_sha" = $z40 ]
+		then
+			# New branch, examine all commits
+		        range="$local_sha"
+		else
+			# Update to existing branch, examine new commits
+			range="$remote_sha..$local_sha"
+		fi
+
+		# Check for foo commit
+		commit=($(git rev-list "$range"))
+		for mt in ${commit}
+		do
+			msg=$(git show -s --format=%B $mt | sed 's/Change-Id:.*//')
+			commitCheck "$msg" "$mt" "$local_ref"
+		done
+
+		# Check for . commit
+		#commit=`git rev-list -n 1 --grep '^\.' "$range"`
+		#if [ -n "$commit" ]
+		#then
+		#	echo "ERROR: git pre-push hook found commit message starting with '.' in $local_ref"
+		#	echo "Eliminate the bad commit message by either:"
+		#	echo "git commit --amend -m 'New commit message'"
+		#	echo "or by editing the commit message while rebasing the commit."
+		#	echo "--------------\n"
+		#	exit 1
+		#fi
+	fi
+done
+
+
 exit 1 
